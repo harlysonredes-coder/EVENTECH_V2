@@ -579,7 +579,11 @@ def criar_certificado(certificado: Certificado, db: Session = Depends(get_db)):
     evento = db.query(models.Evento).filter(
         models.Evento.id_evento == inscricao.id_evento
     ).first()
-
+if not evento:
+    raise HTTPException(
+        status_code=404,
+        detail="Evento não encontrado"
+    )
     if participacao.horas_obtidas < evento.carga_horaria:
         raise HTTPException(
             status_code=400,
