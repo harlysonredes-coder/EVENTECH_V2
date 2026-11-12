@@ -6,7 +6,7 @@ import models
 from schemas import Usuario, Evento, Inscricao, Participacao, Certificado, UsuarioResposta
 from core.security import criar_hash, verificar_senha, criar_token, validar_token
 router = APIRouter()
-seguranca = HTTPBearer()
+seguranca = HTTPBearer(auto_error=False)
 
 def get_db():
     db = SessionLocal()
@@ -17,6 +17,8 @@ def get_db():
 def exigir_autenticacao(
     credenciais: HTTPAuthorizationCredentials = Depends(seguranca)
 ):
+    if credenciais is None:
+        raise HTTPException(status_code=401, detail="Autenticação necessária", headers={"WWW-Authenticate": "Bearer"})
     try:
         email = validar_token(credenciais.credentials)
         return email
@@ -26,6 +28,46 @@ def exigir_autenticacao(
             detail="Token inválido ou expirado",
             headers={"WWW-Authenticate": "Bearer"}
         )
+
+def exigir_administrador(
+    email: str = Depends(exigir_autenticacao),
+    db: Session = Depends(get_db)
+):
+    usuario = db.query(models.Usuario).filter(
+        models.Usuario.email == email
+    ).first()
+
+    if not usuario:
+        raise HTTPException(
+            status_code=401,
+            detail="Usuário não encontrado"
+        )
+
+    if usuario.perfil not in PERFIS_ADMIN:
+        raise HTTPException(
+            status_code=403,
+            detail="Acesso permitido apenas para administradores"
+        )
+
+    return usuario
+
+
+
+PERFIS_ADMIN = ("administrador", "organizador", "administrador/organizador")
+
+
+def usuario_atual(email: str = Depends(exigir_autenticacao), db: Session = Depends(get_db)):
+    usuario = db.query(models.Usuario).filter(models.Usuario.email == email).first()
+    if not usuario:
+        raise HTTPException(status_code=401, detail="Usuário não encontrado")
+    return usuario
+
+
+def exigir_proprietario_ou_admin(id_usuario: int, atual):
+    if atual.id_usuario != id_usuario and atual.perfil not in PERFIS_ADMIN:
+        raise HTTPException(status_code=403, detail="Acesso não permitido a recurso de outro usuário")
+
+
 @router.post("/usuarios", status_code=201, response_model=UsuarioResposta)
 def criar_usuario(usuario: Usuario, db: Session = Depends(get_db)):
         usuario_existente = db.query(models.Usuario).filter(
@@ -37,6 +79,9 @@ def criar_usuario(usuario: Usuario, db: Session = Depends(get_db)):
                 status_code=400,
                 detail="E-mail já cadastrado"
             )
+
+        if usuario.perfil != "participante":
+            raise HTTPException(status_code=403, detail="Cadastro público permite apenas participante")
 
         novo_usuario = models.Usuario(
             nome=usuario.nome,
@@ -51,13 +96,14 @@ def criar_usuario(usuario: Usuario, db: Session = Depends(get_db)):
 
         return novo_usuario
 
-@router.get("/usuarios", response_model=list[UsuarioResposta], dependencies=[Depends(exigir_autenticacao)])
+@router.get("/usuarios", response_model=list[UsuarioResposta], dependencies=[Depends(exigir_administrador)])
 def listar_usuarios(db: Session = Depends(get_db)):
     usuarios = db.query(models.Usuario).all()
     return usuarios
 
 @router.get("/usuarios/{id_usuario}", response_model=UsuarioResposta, dependencies=[Depends(exigir_autenticacao)])
-def buscar_usuario(id_usuario: int, db: Session = Depends(get_db)):
+def buscar_usuario(id_usuario: int, db: Session = Depends(get_db), atual = Depends(usuario_atual)):
+    exigir_proprietario_ou_admin(id_usuario, atual)
     usuario = db.query(models.Usuario).filter(
         models.Usuario.id_usuario == id_usuario
     ).first()
@@ -70,7 +116,7 @@ def buscar_usuario(id_usuario: int, db: Session = Depends(get_db)):
 
     return usuario
 
-@router.put("/usuarios/{id_usuario}", response_model=UsuarioResposta, dependencies=[Depends(exigir_autenticacao)])
+@router.put("/usuarios/{id_usuario}", response_model=UsuarioResposta, dependencies=[Depends(exigir_administrador)])
 def atualizar_usuario(
     id_usuario: int,
     dados: Usuario,
@@ -109,7 +155,8 @@ def atualizar_usuario(
 
     return usuario
 
-@router.delete("/usuarios/{id_usuario}", dependencies=[Depends(exigir_autenticacao)])
+
+@router.delete("/usuarios/{id_usuario}", dependencies=[Depends(exigir_administrador)])
 def excluir_usuario(id_usuario: int, db: Session = Depends(get_db)):
     usuario = db.query(models.Usuario).filter(
         models.Usuario.id_usuario == id_usuario
@@ -126,7 +173,8 @@ def excluir_usuario(id_usuario: int, db: Session = Depends(get_db)):
 
     return {"mensagem": "Usuário excluído com sucesso"}
 
-@router.post("/eventos", status_code=201, dependencies=[Depends(exigir_autenticacao)])
+
+@router.post("/eventos", status_code=201, dependencies=[Depends(exigir_administrador)])
 def criar_evento(evento: Evento, db: Session = Depends(get_db)):
     if evento.capacidade <= 0:
         raise HTTPException(
@@ -173,7 +221,7 @@ def buscar_evento(id_evento: int, db: Session = Depends(get_db)):
 
     return evento
 
-@router.put("/eventos/{id_evento}", dependencies=[Depends(exigir_autenticacao)])
+@router.put("/eventos/{id_evento}", dependencies=[Depends(exigir_administrador)])
 def atualizar_evento(
     id_evento: int,
     dados: Evento,
@@ -212,7 +260,7 @@ def atualizar_evento(
 
     return evento
 
-@router.delete("/eventos/{id_evento}", dependencies=[Depends(exigir_autenticacao)])
+@router.delete("/eventos/{id_evento}", dependencies=[Depends(exigir_administrador)])
 def excluir_evento(id_evento: int, db: Session = Depends(get_db)):
     evento = db.query(models.Evento).filter(
         models.Evento.id_evento == id_evento
@@ -230,7 +278,8 @@ def excluir_evento(id_evento: int, db: Session = Depends(get_db)):
     return {"mensagem": "Evento excluído com sucesso"}
 
 @router.post("/inscricoes", status_code=201, dependencies=[Depends(exigir_autenticacao)])
-def criar_inscricao(inscricao: Inscricao, db: Session = Depends(get_db)):
+def criar_inscricao(inscricao: Inscricao, db: Session = Depends(get_db), atual = Depends(usuario_atual)):
+    exigir_proprietario_ou_admin(inscricao.id_usuario, atual)
     usuario = db.query(models.Usuario).filter(
         models.Usuario.id_usuario == inscricao.id_usuario
     ).first()
@@ -284,13 +333,13 @@ def criar_inscricao(inscricao: Inscricao, db: Session = Depends(get_db)):
 
     return nova_inscricao
 
-@router.get("/inscricoes", dependencies=[Depends(exigir_autenticacao)])
+@router.get("/inscricoes", dependencies=[Depends(exigir_administrador)])
 def listar_inscricoes(db: Session = Depends(get_db)):
     inscricoes = db.query(models.Inscricao).all()
     return inscricoes
 
 @router.get("/inscricoes/{id_inscricao}", dependencies=[Depends(exigir_autenticacao)])
-def buscar_inscricao(id_inscricao: int, db: Session = Depends(get_db)):
+def buscar_inscricao(id_inscricao: int, db: Session = Depends(get_db), atual = Depends(usuario_atual)):
     inscricao = db.query(models.Inscricao).filter(
         models.Inscricao.id_inscricao == id_inscricao
     ).first()
@@ -301,9 +350,10 @@ def buscar_inscricao(id_inscricao: int, db: Session = Depends(get_db)):
             detail="Inscrição não encontrada"
         )
 
+    exigir_proprietario_ou_admin(inscricao.id_usuario, atual)
     return inscricao
 
-@router.put("/inscricoes/{id_inscricao}", dependencies=[Depends(exigir_autenticacao)])
+@router.put("/inscricoes/{id_inscricao}", dependencies=[Depends(exigir_administrador)])
 def atualizar_inscricao(
     id_inscricao: int,
     dados: Inscricao,
@@ -366,14 +416,19 @@ def atualizar_inscricao(
 
     inscricao.id_usuario = dados.id_usuario
     inscricao.id_evento = dados.id_evento
-
+    inscricao.status = "Ativa"
     db.commit()
     db.refresh(inscricao)
 
     return inscricao
 
-@router.delete("/inscricoes/{id_inscricao}", dependencies=[Depends(exigir_autenticacao)])
-def excluir_inscricao(id_inscricao: int, db: Session = Depends(get_db)):
+
+@router.delete("/inscricoes/{id_inscricao}")
+def excluir_inscricao(
+    id_inscricao: int,
+    email: str = Depends(exigir_autenticacao),
+    db: Session = Depends(get_db)
+):
     inscricao = db.query(models.Inscricao).filter(
         models.Inscricao.id_inscricao == id_inscricao
     ).first()
@@ -384,12 +439,35 @@ def excluir_inscricao(id_inscricao: int, db: Session = Depends(get_db)):
             detail="Inscrição não encontrada"
         )
 
+    usuario = db.query(models.Usuario).filter(
+        models.Usuario.email == email
+    ).first()
+
+    if not usuario:
+        raise HTTPException(
+            status_code=401,
+            detail="Usuário não encontrado"
+        )
+
+    perfis_admin = (
+        "administrador",
+        "organizador",
+        "administrador/organizador"
+    )
+
+    if inscricao.id_usuario != usuario.id_usuario and usuario.perfil not in perfis_admin:
+        raise HTTPException(
+            status_code=403,
+            detail="Você não tem permissão para excluir esta inscrição"
+        )
+
     db.delete(inscricao)
     db.commit()
 
     return {"mensagem": "Inscrição excluída com sucesso"}
 
-@router.post("/participacoes", status_code=201, dependencies=[Depends(exigir_autenticacao)])
+
+@router.post("/participacoes", status_code=201, dependencies=[Depends(exigir_administrador)])
 def criar_participacao(participacao: Participacao, db: Session = Depends(get_db)):
     inscricao = db.query(models.Inscricao).filter(
         models.Inscricao.id_inscricao == participacao.id_inscricao
@@ -444,12 +522,12 @@ def criar_participacao(participacao: Participacao, db: Session = Depends(get_db)
 
     return nova_participacao
 
-@router.get("/participacoes", dependencies=[Depends(exigir_autenticacao)])
+@router.get("/participacoes", dependencies=[Depends(exigir_administrador)])
 def listar_participacoes(db: Session = Depends(get_db)):
     participacoes = db.query(models.Participacao).all()
     return participacoes
 
-@router.get("/participacoes/{id_participacao}", dependencies=[Depends(exigir_autenticacao)])
+@router.get("/participacoes/{id_participacao}", dependencies=[Depends(exigir_administrador)])
 def buscar_participacao(id_participacao: int, db: Session = Depends(get_db)):
     participacao = db.query(models.Participacao).filter(
         models.Participacao.id_participacao == id_participacao
@@ -463,7 +541,7 @@ def buscar_participacao(id_participacao: int, db: Session = Depends(get_db)):
 
     return participacao
 
-@router.put("/participacoes/{id_participacao}", dependencies=[Depends(exigir_autenticacao)])
+@router.put("/participacoes/{id_participacao}", dependencies=[Depends(exigir_administrador)])
 def atualizar_participacao(
     id_participacao: int,
     dados: Participacao,
@@ -533,7 +611,7 @@ def atualizar_participacao(
 
     return participacao
 
-@router.delete("/participacoes/{id_participacao}", dependencies=[Depends(exigir_autenticacao)])
+@router.delete("/participacoes/{id_participacao}", dependencies=[Depends(exigir_administrador)])
 def excluir_participacao(id_participacao: int, db: Session = Depends(get_db)):
     participacao = db.query(models.Participacao).filter(
         models.Participacao.id_participacao == id_participacao
@@ -550,7 +628,7 @@ def excluir_participacao(id_participacao: int, db: Session = Depends(get_db)):
 
     return {"mensagem": "Participação excluída com sucesso"}
 
-@router.post("/certificados", status_code=201, dependencies=[Depends(exigir_autenticacao)])
+@router.post("/certificados", status_code=201, dependencies=[Depends(exigir_administrador)])
 def criar_certificado(certificado: Certificado, db: Session = Depends(get_db)):
     participacao = db.query(models.Participacao).filter(
         models.Participacao.id_participacao == certificado.id_participacao
@@ -610,12 +688,12 @@ def criar_certificado(certificado: Certificado, db: Session = Depends(get_db)):
 
     return novo_certificado
 
-@router.get("/certificados", dependencies=[Depends(exigir_autenticacao)])
+@router.get("/certificados", dependencies=[Depends(exigir_administrador)])
 def listar_certificados(db: Session = Depends(get_db)):
     certificados = db.query(models.Certificado).all()
     return certificados
 
-@router.get("/certificados/{id_certificado}", dependencies=[Depends(exigir_autenticacao)])
+@router.get("/certificados/{id_certificado}", dependencies=[Depends(exigir_administrador)])
 def buscar_certificado(id_certificado: int, db: Session = Depends(get_db)):
     certificado = db.query(models.Certificado).filter(
         models.Certificado.id_certificado == id_certificado
@@ -629,7 +707,7 @@ def buscar_certificado(id_certificado: int, db: Session = Depends(get_db)):
 
     return certificado
 
-@router.put("/certificados/{id_certificado}", dependencies=[Depends(exigir_autenticacao)])
+@router.put("/certificados/{id_certificado}", dependencies=[Depends(exigir_administrador)])
 def atualizar_certificado(
     id_certificado: int,
     dados: Certificado,
@@ -708,7 +786,7 @@ def atualizar_certificado(
 
     return certificado
 
-@router.delete("/certificados/{id_certificado}", dependencies=[Depends(exigir_autenticacao)])
+@router.delete("/certificados/{id_certificado}", dependencies=[Depends(exigir_administrador)])
 def excluir_certificado(id_certificado: int, db: Session = Depends(get_db)):
     certificado = db.query(models.Certificado).filter(
         models.Certificado.id_certificado == id_certificado
@@ -762,5 +840,6 @@ def usuario_autenticado(
     return {
         "id_usuario": usuario.id_usuario,
         "nome": usuario.nome,
-        "email": usuario.email
+        "email": usuario.email,
+        "perfil": usuario.perfil
     }

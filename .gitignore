@@ -1,10 +1,7 @@
-﻿.env
+.env
 .venv/
 __pycache__/
 *.pyc
 *.db
 *.sqlite3
-.vscode/
-
-*.docx
-*.txt
+.pytest_cache/
