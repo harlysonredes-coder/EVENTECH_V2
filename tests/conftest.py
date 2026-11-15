@@ -1,6 +1,9 @@
 import os
 
 os.environ["JWT_SECRET_KEY"] = "chave-local-apenas-para-testes-automatizados-123456789"
+# O startup da app cria tabelas no engine padrão; apontá-lo para a memória impede
+# que os testes criem ou alterem o arquivo eventech.db.
+os.environ["DATABASE_URL"] = "sqlite://"
 
 from datetime import date
 
