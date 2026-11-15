@@ -80,7 +80,6 @@ Evidência: cenários 2–5 de `antes_depois.txt`; testes em `tests/test_erros_p
 - `core/config.py` centraliza variáveis de ambiente; `DATABASE_URL` configurável (antes, SQLite fixo no código); `JWT_SECRET_KEY` exige ≥ 32 caracteres.
 - Usuário do token removido do banco → 401 (antes seria 404 em `/me`).
 - `scripts/alterar_senha_admin.py` tinha um e-mail fixo no código; agora recebe o e-mail como argumento.
-- Respostas nunca expõem `senha_hash` (`response_model`).
 
 ## 5. Código morto e duplicado
 
