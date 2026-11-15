@@ -1,0 +1,9 @@
+fastapi>=0.110,<1
+uvicorn>=0.27,<1
+SQLAlchemy>=2,<3
+pydantic>=2,<3
+PyJWT>=2,<3
+pwdlib[argon2]>=0.2,<1
+python-dotenv>=1,<2
+pytest>=8,<10
+httpx>=0.27,<1
