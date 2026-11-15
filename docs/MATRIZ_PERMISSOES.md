@@ -1,21 +1,26 @@
-# EVENTECH V2 — Matriz de permissões proposta
+# EVENTECH V2 — Matriz de permissões
 
-| Endpoint / ação | Participante | Administrador/Organizador |
-|---|---|---|
-| POST /usuarios (cadastro público) | Criar apenas participante | Criar apenas participante (admin via script local) |
-| GET /usuarios | Negado (403) | Permitido |
-| GET /usuarios/{id} | Somente próprio | Todos |
-| PUT/DELETE /usuarios/{id} | Negado (403) | Permitido |
-| GET /eventos e GET /eventos/{id} | Permitido com JWT | Permitido |
-| POST/PUT/DELETE /eventos | Negado (403) | Permitido |
-| POST /inscricoes | Apenas própria | Permitido |
-| GET /inscricoes | Negado (403) | Permitido |
-| GET /inscricoes/{id} | Apenas própria | Permitido |
-| PUT /inscricoes/{id} | Negado (403) | Permitido |
-| DELETE /inscricoes/{id} | Apenas própria | Permitido |
-| Participações e certificados (consultas e alterações) | Negado (403) | Permitido |
-| GET /me | Permitido | Permitido |
+✅ permitido · ⛔ negado (403) · 👤 somente o próprio recurso · 🔓 sem autenticação
 
-**401**: ausente, inválido ou expirado. **403**: autenticado sem permissão.
+| Endpoint / ação | Anônimo | Participante | Administrador/Organizador |
+|---|---|---|---|
+| POST /login | 🔓 | ✅ | ✅ |
+| POST /usuarios (cadastro) | 🔓 só participante | — | — (admin nasce via script local) |
+| GET /me | 401 | ✅ | ✅ |
+| GET /usuarios | 401 | ⛔ | ✅ |
+| GET /usuarios/{id} | 401 | 👤 | ✅ todos |
+| PUT/DELETE /usuarios/{id} | 401 | ⛔ | ✅ |
+| GET /eventos, GET /eventos/{id} | 401 | ✅ | ✅ |
+| POST/PUT/DELETE /eventos | 401 | ⛔ | ✅ |
+| POST /inscricoes | 401 | 👤 | ✅ |
+| GET /inscricoes | 401 | ⛔ | ✅ |
+| GET /inscricoes/{id} | 401 | 👤 | ✅ |
+| PUT /inscricoes/{id} | 401 | ⛔ | ✅ |
+| DELETE /inscricoes/{id} | 401 | 👤 | ✅ |
+| /participacoes (todas) | 401 | ⛔ | ✅ |
+| /certificados (todas) | 401 | ⛔ | ✅ |
+| GET /health | 🔓 | ✅ | ✅ |
 
-Esta matriz é uma proposta para revisão frente à matriz original da Primeira Unidade, antes de entregar.
+Perfis administrativos reconhecidos: `administrador`, `organizador`, `administrador/organizador`.
+
+**401**: token ausente, inválido ou expirado. **403**: autenticado sem permissão. Cada linha acima é verificada em `tests/test_autorizacao.py` e nos demais arquivos de teste.
