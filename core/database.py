@@ -1,17 +1,31 @@
 from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker, declarative_base
+from sqlalchemy.orm import declarative_base, sessionmaker
 
-DATABASE_URL = "sqlite:///./eventech.db"
+from core.config import obter_database_url
 
-engine = create_engine(
-    DATABASE_URL,
-    connect_args={"check_same_thread": False}
-)
+DATABASE_URL = obter_database_url()
 
-SessionLocal = sessionmaker(
-    autocommit=False,
-    autoflush=False,
-    bind=engine
-)
+# `check_same_thread` é uma restrição específica do SQLite.
+_connect_args = {"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {}
+
+engine = create_engine(DATABASE_URL, connect_args=_connect_args, pool_pre_ping=True)
+
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 Base = declarative_base()
+
+
+def get_db():
+    """Dependência FastAPI: uma sessão por requisição, sempre fechada ao final."""
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+
+def criar_tabelas() -> None:
+    """Cria as tabelas ausentes. Chamado no startup da aplicação, não no import."""
+    import models  # noqa: F401  (registra as entidades no metadata)
+
+    Base.metadata.create_all(bind=engine)

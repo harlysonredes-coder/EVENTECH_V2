@@ -1,5 +1,5 @@
 from sqlalchemy import Column, Integer, String, Date, ForeignKey
-from core.database import Base, engine
+from core.database import Base
 
 
 class Usuario(Base):
@@ -64,5 +64,3 @@ class Certificado(Base):
     )
     data_emissao = Column(Date, nullable=False)
 
-
-Base.metadata.create_all(bind=engine)
