@@ -110,3 +110,38 @@ def test_fluxo_completo_e_exclusao_em_cascata_manual(ambiente, auth, registrar):
     assert client.delete(f"/certificados/{id_cert}", headers=auth(ADMIN)).status_code == 200
     assert client.delete(f"/participacoes/{id_part}", headers=auth(ADMIN)).status_code == 200
     assert client.delete(f"/inscricoes/{ids['inscricao']}", headers=auth(ADMIN)).status_code == 200
+
+
+def test_admin_atualiza_participacao(ambiente, auth, registrar):
+    client, ids = ambiente
+    id_part = registrar(horas=2).json()["id_participacao"]
+    corpo = {"id_inscricao": ids["inscricao"], "presente": True, "horas_obtidas": 4}
+    r = client.put(f"/participacoes/{id_part}", json=corpo, headers=auth(ADMIN))
+    assert r.status_code == 200 and r.json()["horas_obtidas"] == 4
+
+
+def test_atualizar_participacao_com_horas_invalidas_retorna_422(ambiente, auth, registrar):
+    client, ids = ambiente
+    id_part = registrar().json()["id_participacao"]
+    corpo = {"id_inscricao": ids["inscricao"], "presente": True, "horas_obtidas": 99}
+    assert client.put(f"/participacoes/{id_part}", json=corpo, headers=auth(ADMIN)).status_code == 422
+
+
+def test_atualizar_participacao_inexistente_retorna_404(ambiente, auth):
+    client, ids = ambiente
+    corpo = {"id_inscricao": ids["inscricao"], "presente": True, "horas_obtidas": 1}
+    assert client.put("/participacoes/9999", json=corpo, headers=auth(ADMIN)).status_code == 404
+
+
+def test_admin_atualiza_data_do_certificado(ambiente, auth, registrar):
+    client, _ = ambiente
+    id_part = registrar().json()["id_participacao"]
+    id_cert = emitir(client, auth, id_part).json()["id_certificado"]
+    r = client.put(f"/certificados/{id_cert}", json={"id_participacao": id_part, "data_emissao": "2026-12-20"},
+                   headers=auth(ADMIN))
+    assert r.status_code == 200 and r.json()["data_emissao"] == "2026-12-20"
+
+
+def test_buscar_certificado_inexistente_retorna_404(ambiente, auth):
+    client, _ = ambiente
+    assert client.get("/certificados/9999", headers=auth(ADMIN)).status_code == 404

@@ -3,6 +3,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.openapi.utils import get_openapi
 
 from api import router
 from core.config import obter_origens_cors
@@ -41,6 +42,27 @@ async def lifespan(_: FastAPI):
     yield
 
 
+def _openapi(app: FastAPI) -> dict:
+    """OpenAPI com todos os 422 apontando para ErroResposta (o formato realmente devolvido)."""
+    if app.openapi_schema:
+        return app.openapi_schema
+    spec = get_openapi(
+        title=app.title, version=app.version, description=app.description,
+        routes=app.routes, tags=app.openapi_tags,
+    )
+    ref = {"$ref": "#/components/schemas/ErroResposta"}
+    for operacoes in spec["paths"].values():
+        for op in operacoes.values():
+            resposta = op.get("responses", {}).get("422")
+            if resposta:
+                resposta["description"] = "Dados inválidos ou regra de negócio violada"
+                resposta["content"] = {"application/json": {"schema": ref}}
+    for nome in ("HTTPValidationError", "ValidationError"):
+        spec["components"]["schemas"].pop(nome, None)
+    app.openapi_schema = spec
+    return spec
+
+
 def create_app() -> FastAPI:
     logging.basicConfig(level=logging.INFO)
     app = FastAPI(
@@ -54,6 +76,7 @@ def create_app() -> FastAPI:
         )
     registrar_handlers(app)
     app.include_router(router)
+    app.openapi = lambda: _openapi(app)
 
     @app.get("/health", tags=["Infraestrutura"], summary="Health check")
     def health():
