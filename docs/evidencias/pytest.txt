@@ -132,7 +132,7 @@ services/inscricoes.py                        38      2    95%
 services/participacoes.py                     36      0   100%
 services/usuarios.py                          38      0   100%
 tests/__init__.py                              0      0   100%
-tests/conftest.py                             51      0   100%
+tests/conftest.py                             52      0   100%
 tests/test_autorizacao.py                     66      0   100%
 tests/test_config.py                          19      0   100%
 tests/test_erros_padronizados.py              23      0   100%
@@ -143,5 +143,5 @@ tests/test_participacoes_certificados.py      93      0   100%
 tests/test_regras_unitarias.py                33      0   100%
 tests/test_usuarios.py                        56      0   100%
 --------------------------------------------------------------
-TOTAL                                       1129     58    95%
-======================== 91 passed, 1 warning in 39.94s ========================
+TOTAL                                       1130     58    95%
+======================== 91 passed, 1 warning in 37.17s ========================
