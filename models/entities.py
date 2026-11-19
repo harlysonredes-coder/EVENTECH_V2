@@ -1,5 +1,8 @@
-from sqlalchemy import Column, Integer, String, Date, ForeignKey
-from core.database import Base, engine
+from sqlalchemy import (
+    Boolean, Column, Date, ForeignKey, Integer, String, UniqueConstraint,
+)
+
+from core.database import Base
 
 
 class Usuario(Base):
@@ -7,7 +10,7 @@ class Usuario(Base):
 
     id_usuario = Column(Integer, primary_key=True, index=True)
     nome = Column(String, nullable=False)
-    email = Column(String, unique=True, nullable=False)
+    email = Column(String, unique=True, nullable=False, index=True)
     perfil = Column(String, nullable=False)
     senha_hash = Column(String, nullable=True)
 
@@ -25,18 +28,13 @@ class Evento(Base):
 
 class Inscricao(Base):
     __tablename__ = "inscricoes"
+    # Garante no banco a regra "um usuário só se inscreve uma vez por evento",
+    # mesmo sob requisições concorrentes.
+    __table_args__ = (UniqueConstraint("id_usuario", "id_evento", name="uq_inscricao_usuario_evento"),)
 
     id_inscricao = Column(Integer, primary_key=True, index=True)
-    id_usuario = Column(
-        Integer,
-        ForeignKey("usuarios.id_usuario"),
-        nullable=False
-    )
-    id_evento = Column(
-        Integer,
-        ForeignKey("eventos.id_evento"),
-        nullable=False
-    )
+    id_usuario = Column(Integer, ForeignKey("usuarios.id_usuario"), nullable=False)
+    id_evento = Column(Integer, ForeignKey("eventos.id_evento"), nullable=False)
     status = Column(String, nullable=False)
 
 
@@ -45,11 +43,9 @@ class Participacao(Base):
 
     id_participacao = Column(Integer, primary_key=True, index=True)
     id_inscricao = Column(
-        Integer,
-        ForeignKey("inscricoes.id_inscricao"),
-        nullable=False
+        Integer, ForeignKey("inscricoes.id_inscricao"), nullable=False, unique=True
     )
-    presente = Column(Integer, nullable=False)
+    presente = Column(Boolean, nullable=False)
     horas_obtidas = Column(Integer, nullable=False)
 
 
@@ -58,11 +54,6 @@ class Certificado(Base):
 
     id_certificado = Column(Integer, primary_key=True, index=True)
     id_participacao = Column(
-        Integer,
-        ForeignKey("participacoes.id_participacao"),
-        nullable=False
+        Integer, ForeignKey("participacoes.id_participacao"), nullable=False, unique=True
     )
     data_emissao = Column(Date, nullable=False)
-
-
-Base.metadata.create_all(bind=engine)

@@ -1,0 +1,25 @@
+# Blueprint do Render: web service + PostgreSQL gerenciado (persistência em produção)
+services:
+  - type: web
+    name: eventech-api
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.3
+      - key: JWT_SECRET_KEY
+        generateValue: true          # o Render gera um segredo aleatório; nada no repositório
+      - key: DATABASE_URL
+        fromDatabase:
+          name: eventech-db
+          property: connectionString
+      - key: TOKEN_EXPIRE_MINUTES
+        value: "30"
+
+databases:
+  - name: eventech-db
+    plan: free
+    databaseName: eventech

@@ -1,0 +1,23 @@
+# Execução real dos mesmos 7 cenários nas duas versões (gerado por docs/evidencias/demo_antes_depois.py)
+
+################ ANTES (commit 3ca2091 - estado inicial) ################
+1. login com credenciais na URL      -> 200
+2. capacidade=0                      -> 400 {"detail": "A capacidade deve ser maior que zero"}
+3. evento inexistente                -> 404 {"detail": "Evento não encontrado"}
+4. campo obrigatório ausente         -> 422 {"detail": [{"type": "missing", "loc": ["body", "descricao"], "msg": "Field required", "input": {"titulo": "x"
+5. inscrição duplicada               -> 400 {"detail": "Usuário já inscrito neste evento"}
+6. excluir evento COM inscrição      -> 200 {"mensagem": "Evento excluído com sucesso"}
+   inscrições órfãs no banco depois  -> 1
+7. e-mail 'invalido' no cadastro     -> 201
+
+################ DEPOIS (versão atual) ################
+1. login com credenciais na URL      -> 422
+2. capacidade=0                      -> 422 {"status": 422, "codigo": "REQUISICAO_INVALIDA", "mensagem": "Dados de entrada inválidos", "detalhes": [{"camp
+3. evento inexistente                -> 404 {"status": 404, "codigo": "NAO_ENCONTRADO", "mensagem": "Evento não encontrado", "detalhes": null}
+4. campo obrigatório ausente         -> 422 {"status": 422, "codigo": "REQUISICAO_INVALIDA", "mensagem": "Dados de entrada inválidos", "detalhes": [{"camp
+5. inscrição duplicada               -> 409 {"status": 409, "codigo": "CONFLITO", "mensagem": "Usuário já inscrito neste evento", "detalhes": null}
+6. excluir evento COM inscrição      -> 409 {"status": 409, "codigo": "CONFLITO", "mensagem": "Evento possui inscrições; exclua-as antes de remover o even
+   inscrições órfãs no banco depois  -> 1
+7. e-mail 'invalido' no cadastro     -> 422
+
+Obs.: no 'DEPOIS', a linha 'inscrições' = 1 é a inscrição legítima que continua ligada ao evento preservado (exclusão bloqueada com 409); no 'ANTES' ela ficou ÓRFÃ após o evento ser apagado.

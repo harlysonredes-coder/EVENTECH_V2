@@ -1,48 +1,31 @@
-
-import os
 from datetime import datetime, timedelta, timezone
 
 import jwt
 from pwdlib import PasswordHash
-from dotenv import load_dotenv
-load_dotenv()
+
+from core.config import obter_expiracao_token_minutos, obter_segredo_jwt
+
 password_hash = PasswordHash.recommended()
 
 ALGORITHM = "HS256"
-TOKEN_EXPIRE_MINUTES = 30
 
 
 def criar_hash(senha: str) -> str:
     return password_hash.hash(senha)
 
 
-def verificar_senha(senha: str, hash_salvo: str) -> bool:
+def verificar_senha(senha: str, hash_salvo: str | None) -> bool:
+    """Retorna False (em vez de lançar erro) para usuários sem senha cadastrada."""
+    if not hash_salvo:
+        return False
     return password_hash.verify(senha, hash_salvo)
 
 
 def criar_token(email: str) -> str:
-    chave = os.environ.get("JWT_SECRET_KEY")
-
-    if not chave:
-        raise RuntimeError("JWT_SECRET_KEY nao configurada")
-
-    expiracao = datetime.now(timezone.utc) + timedelta(
-        minutes=TOKEN_EXPIRE_MINUTES
-    )
-
-    dados = {
-        "sub": email,
-        "exp": expiracao
-    }
-
-    return jwt.encode(dados, chave, algorithm=ALGORITHM)
+    expiracao = datetime.now(timezone.utc) + timedelta(minutes=obter_expiracao_token_minutos())
+    return jwt.encode({"sub": email, "exp": expiracao}, obter_segredo_jwt(), algorithm=ALGORITHM)
 
 
 def validar_token(token: str) -> str:
-    chave = os.environ.get("JWT_SECRET_KEY")
-
-    if not chave:
-        raise RuntimeError("JWT_SECRET_KEY nao configurada")
-
-    dados = jwt.decode(token, chave, algorithms=[ALGORITHM])
+    dados = jwt.decode(token, obter_segredo_jwt(), algorithms=[ALGORITHM])
     return dados["sub"]

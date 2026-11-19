@@ -1,0 +1,2547 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "EVENTECH",
+    "description": "\nAPI REST para gestão de **eventos acadêmicos**: usuários, eventos, inscrições,\nparticipações e emissão de certificados.\n\n## Autenticação\n1. Cadastre-se em `POST /usuarios` (perfil *participante*) ou use um administrador criado via script.\n2. Faça `POST /login` e copie o `access_token`.\n3. Clique em **Authorize** e cole o token. Ele vale por 30 minutos.\n\n## Padrão de erros\nToda resposta de erro segue o schema `ErroResposta`: `401` não autenticado, `403` sem permissão,\n`404` não encontrado, `409` conflito (duplicidade, sem vagas, dependências) e `422` dados\ninválidos ou regra de negócio violada.\n",
+    "version": "2.0.0"
+  },
+  "paths": {
+    "/login": {
+      "post": {
+        "tags": [
+          "Autenticação"
+        ],
+        "summary": "Autenticar e obter token JWT",
+        "description": "Valida e-mail e senha e devolve um JWT (validade padrão de 30 minutos). Credenciais trafegam no corpo da requisição, nunca na URL.",
+        "operationId": "login_login_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginEntrada"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TokenResposta"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Token ausente, inválido ou expirado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroResposta"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Dados inválidos ou regra de negócio violada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroResposta"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/me": {
+      "get": {
+        "tags": [
+          "Autenticação"
+        ],
+        "summary": "Dados do usuário autenticado",
+        "operationId": "me_me_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UsuarioResposta"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Token ausente, inválido ou expirado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroResposta"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/usuarios": {
+      "get": {
+        "tags": [
+          "Usuários"
+        ],
+        "summary": "Listar usuários (admin)",
+        "operationId": "listar_usuarios_usuarios_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/UsuarioResposta"
+                  },
+                  "type": "array",
+                  "title": "Response Listar Usuarios Usuarios Get"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Token ausente, inválido ou expirado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroResposta"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Autenticado, mas sem permissão para a ação",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroResposta"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Usuários"
+        ],
+        "summary": "Cadastro público de participante",
+        "description": "Aberto, sem autenticação. Apenas o perfil `participante` é aceito; administradores são criados por `python -m scripts.criar_admin_local`.",
+        "operationId": "criar_usuario_usuarios_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UsuarioCadastro"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UsuarioResposta"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Autenticado, mas sem permissão para a ação",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroResposta"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflito (duplicidade, sem vagas ou registro com dependências)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroResposta"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Dados inválidos ou regra de negócio violada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroResposta"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/usuarios/{id_usuario}": {
+      "get": {
+        "tags": [
+          "Usuários"
+        ],
+        "summary": "Buscar usuário",
+        "description": "Participante só acessa o próprio registro; administrador acessa todos.",
+        "operationId": "buscar_usuario_usuarios__id_usuario__get",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id_usuario",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Id Usuario"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UsuarioResposta"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Token ausente, inválido ou expirado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroResposta"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Autenticado, mas sem permissão para a ação",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroResposta"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Recurso não encontrado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroResposta"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Dados inválidos ou regra de negócio violada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroResposta"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Usuários"
+        ],
+        "summary": "Atualizar usuário (admin)",
+        "operationId": "atualizar_usuario_usuarios__id_usuario__put",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id_usuario",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Id Usuario"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UsuarioAtualizar"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UsuarioResposta"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Token ausente, inválido ou expirado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroResposta"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Autenticado, mas sem permissão para a ação",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroResposta"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Recurso não encontrado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroResposta"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflito (duplicidade, sem vagas ou registro com dependências)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroResposta"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Dados inválidos ou regra de negócio violada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroResposta"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Usuários"
+        ],
+        "summary": "Excluir usuário (admin)",
+        "description": "Retorna 409 se o usuário possuir inscrições.",
+        "operationId": "excluir_usuario_usuarios__id_usuario__delete",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id_usuario",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Id Usuario"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MensagemResposta"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Token ausente, inválido ou expirado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroResposta"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Autenticado, mas sem permissão para a ação",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroResposta"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Recurso não encontrado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroResposta"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflito (duplicidade, sem vagas ou registro com dependências)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroResposta"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Dados inválidos ou regra de negócio violada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroResposta"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/eventos": {
+      "get": {
+        "tags": [
+          "Eventos"
+        ],
+        "summary": "Listar eventos",
+        "operationId": "listar_eventos_eventos_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/EventoResposta"
+                  },
+                  "type": "array",
+                  "title": "Response Listar Eventos Eventos Get"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Token ausente, inválido ou expirado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroResposta"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Eventos"
+        ],
+        "summary": "Criar evento (admin)",
+        "operationId": "criar_evento_eventos_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EventoEntrada"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EventoResposta"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Token ausente, inválido ou expirado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroResposta"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Autenticado, mas sem permissão para a ação",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroResposta"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Dados inválidos ou regra de negócio violada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroResposta"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/eventos/{id_evento}": {
+      "get": {
+        "tags": [
+          "Eventos"
+        ],
+        "summary": "Buscar evento",
+        "operationId": "buscar_evento_eventos__id_evento__get",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id_evento",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Id Evento"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EventoResposta"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Token ausente, inválido ou expirado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroResposta"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Recurso não encontrado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroResposta"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Dados inválidos ou regra de negócio violada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroResposta"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Eventos"
+        ],
+        "summary": "Atualizar evento (admin)",
+        "description": "A capacidade não pode ser menor que o número de inscritos (422).",
+        "operationId": "atualizar_evento_eventos__id_evento__put",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id_evento",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Id Evento"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EventoEntrada"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EventoResposta"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Token ausente, inválido ou expirado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroResposta"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Autenticado, mas sem permissão para a ação",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroResposta"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Recurso não encontrado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroResposta"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Dados inválidos ou regra de negócio violada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroResposta"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Eventos"
+        ],
+        "summary": "Excluir evento (admin)",
+        "description": "Retorna 409 se houver inscrições no evento.",
+        "operationId": "excluir_evento_eventos__id_evento__delete",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id_evento",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Id Evento"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MensagemResposta"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Token ausente, inválido ou expirado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroResposta"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Autenticado, mas sem permissão para a ação",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroResposta"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Recurso não encontrado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroResposta"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflito (duplicidade, sem vagas ou registro com dependências)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroResposta"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Dados inválidos ou regra de negócio violada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroResposta"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/inscricoes": {
+      "get": {
+        "tags": [
+          "Inscrições"
+        ],
+        "summary": "Listar inscrições (admin)",
+        "operationId": "listar_inscricoes_inscricoes_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/InscricaoResposta"
+                  },
+                  "type": "array",
+                  "title": "Response Listar Inscricoes Inscricoes Get"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Token ausente, inválido ou expirado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroResposta"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Autenticado, mas sem permissão para a ação",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroResposta"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Inscrições"
+        ],
+        "summary": "Inscrever em evento",
+        "description": "Participante só inscreve a si mesmo. Retorna 409 se já inscrito ou se não houver vagas.",
+        "operationId": "criar_inscricao_inscricoes_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InscricaoEntrada"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InscricaoResposta"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Token ausente, inválido ou expirado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroResposta"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Autenticado, mas sem permissão para a ação",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroResposta"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Recurso não encontrado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroResposta"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflito (duplicidade, sem vagas ou registro com dependências)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroResposta"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Dados inválidos ou regra de negócio violada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroResposta"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/inscricoes/{id_inscricao}": {
+      "get": {
+        "tags": [
+          "Inscrições"
+        ],
+        "summary": "Buscar inscrição",
+        "description": "Participante só acessa a própria inscrição.",
+        "operationId": "buscar_inscricao_inscricoes__id_inscricao__get",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id_inscricao",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Id Inscricao"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InscricaoResposta"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Token ausente, inválido ou expirado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroResposta"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Autenticado, mas sem permissão para a ação",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroResposta"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Recurso não encontrado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroResposta"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Dados inválidos ou regra de negócio violada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroResposta"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Inscrições"
+        ],
+        "summary": "Atualizar inscrição (admin)",
+        "operationId": "atualizar_inscricao_inscricoes__id_inscricao__put",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id_inscricao",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Id Inscricao"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InscricaoEntrada"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InscricaoResposta"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Token ausente, inválido ou expirado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroResposta"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Autenticado, mas sem permissão para a ação",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroResposta"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Recurso não encontrado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroResposta"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflito (duplicidade, sem vagas ou registro com dependências)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroResposta"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Dados inválidos ou regra de negócio violada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroResposta"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Inscrições"
+        ],
+        "summary": "Cancelar inscrição",
+        "description": "Participante só exclui a própria inscrição. Retorna 409 se já houver participação.",
+        "operationId": "excluir_inscricao_inscricoes__id_inscricao__delete",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id_inscricao",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Id Inscricao"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MensagemResposta"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Token ausente, inválido ou expirado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroResposta"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Autenticado, mas sem permissão para a ação",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroResposta"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Recurso não encontrado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroResposta"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflito (duplicidade, sem vagas ou registro com dependências)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroResposta"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Dados inválidos ou regra de negócio violada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroResposta"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/participacoes": {
+      "get": {
+        "tags": [
+          "Participações"
+        ],
+        "summary": "Listar participações (admin)",
+        "operationId": "listar_participacoes_participacoes_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ParticipacaoResposta"
+                  },
+                  "type": "array",
+                  "title": "Response Listar Participacoes Participacoes Get"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Token ausente, inválido ou expirado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroResposta"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Autenticado, mas sem permissão para a ação",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroResposta"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Participações"
+        ],
+        "summary": "Registrar participação (admin)",
+        "description": "Horas obtidas devem estar entre 0 e a carga horária do evento (422).",
+        "operationId": "criar_participacao_participacoes_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ParticipacaoEntrada"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ParticipacaoResposta"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Token ausente, inválido ou expirado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroResposta"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Autenticado, mas sem permissão para a ação",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroResposta"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Recurso não encontrado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroResposta"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflito (duplicidade, sem vagas ou registro com dependências)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroResposta"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Dados inválidos ou regra de negócio violada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroResposta"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/participacoes/{id_participacao}": {
+      "get": {
+        "tags": [
+          "Participações"
+        ],
+        "summary": "Buscar participação (admin)",
+        "operationId": "buscar_participacao_participacoes__id_participacao__get",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id_participacao",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Id Participacao"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ParticipacaoResposta"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Token ausente, inválido ou expirado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroResposta"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Autenticado, mas sem permissão para a ação",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroResposta"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Recurso não encontrado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroResposta"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Dados inválidos ou regra de negócio violada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroResposta"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Participações"
+        ],
+        "summary": "Atualizar participação (admin)",
+        "operationId": "atualizar_participacao_participacoes__id_participacao__put",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id_participacao",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Id Participacao"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ParticipacaoEntrada"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ParticipacaoResposta"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Token ausente, inválido ou expirado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroResposta"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Autenticado, mas sem permissão para a ação",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroResposta"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Recurso não encontrado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroResposta"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflito (duplicidade, sem vagas ou registro com dependências)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroResposta"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Dados inválidos ou regra de negócio violada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroResposta"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Participações"
+        ],
+        "summary": "Excluir participação (admin)",
+        "description": "Retorna 409 se já houver certificado emitido.",
+        "operationId": "excluir_participacao_participacoes__id_participacao__delete",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id_participacao",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Id Participacao"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MensagemResposta"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Token ausente, inválido ou expirado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroResposta"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Autenticado, mas sem permissão para a ação",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroResposta"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Recurso não encontrado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroResposta"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflito (duplicidade, sem vagas ou registro com dependências)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroResposta"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Dados inválidos ou regra de negócio violada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroResposta"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/certificados": {
+      "get": {
+        "tags": [
+          "Certificados"
+        ],
+        "summary": "Listar certificados (admin)",
+        "operationId": "listar_certificados_certificados_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/CertificadoResposta"
+                  },
+                  "type": "array",
+                  "title": "Response Listar Certificados Certificados Get"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Token ausente, inválido ou expirado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroResposta"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Autenticado, mas sem permissão para a ação",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroResposta"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Certificados"
+        ],
+        "summary": "Emitir certificado (admin)",
+        "description": "Exige presença confirmada e horas obtidas >= carga horária do evento (422). Um certificado por participação (409).",
+        "operationId": "emitir_certificado_certificados_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CertificadoEntrada"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CertificadoResposta"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Token ausente, inválido ou expirado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroResposta"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Autenticado, mas sem permissão para a ação",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroResposta"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Recurso não encontrado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroResposta"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflito (duplicidade, sem vagas ou registro com dependências)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroResposta"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Dados inválidos ou regra de negócio violada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroResposta"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/certificados/{id_certificado}": {
+      "get": {
+        "tags": [
+          "Certificados"
+        ],
+        "summary": "Buscar certificado (admin)",
+        "operationId": "buscar_certificado_certificados__id_certificado__get",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id_certificado",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Id Certificado"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CertificadoResposta"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Token ausente, inválido ou expirado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroResposta"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Autenticado, mas sem permissão para a ação",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroResposta"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Recurso não encontrado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroResposta"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Dados inválidos ou regra de negócio violada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroResposta"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Certificados"
+        ],
+        "summary": "Atualizar certificado (admin)",
+        "operationId": "atualizar_certificado_certificados__id_certificado__put",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id_certificado",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Id Certificado"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CertificadoEntrada"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CertificadoResposta"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Token ausente, inválido ou expirado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroResposta"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Autenticado, mas sem permissão para a ação",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroResposta"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Recurso não encontrado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroResposta"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflito (duplicidade, sem vagas ou registro com dependências)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroResposta"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Dados inválidos ou regra de negócio violada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroResposta"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Certificados"
+        ],
+        "summary": "Excluir certificado (admin)",
+        "operationId": "excluir_certificado_certificados__id_certificado__delete",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id_certificado",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Id Certificado"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MensagemResposta"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Token ausente, inválido ou expirado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroResposta"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Autenticado, mas sem permissão para a ação",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroResposta"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Recurso não encontrado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroResposta"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Dados inválidos ou regra de negócio violada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroResposta"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health": {
+      "get": {
+        "tags": [
+          "Infraestrutura"
+        ],
+        "summary": "Health check",
+        "operationId": "health_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "CertificadoEntrada": {
+        "properties": {
+          "id_participacao": {
+            "type": "integer",
+            "exclusiveMinimum": 0.0,
+            "title": "Id Participacao",
+            "examples": [
+              1
+            ]
+          },
+          "data_emissao": {
+            "type": "string",
+            "format": "date",
+            "title": "Data Emissao",
+            "examples": [
+              "2026-12-11"
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "id_participacao",
+          "data_emissao"
+        ],
+        "title": "CertificadoEntrada"
+      },
+      "CertificadoResposta": {
+        "properties": {
+          "id_certificado": {
+            "type": "integer",
+            "title": "Id Certificado"
+          },
+          "id_participacao": {
+            "type": "integer",
+            "title": "Id Participacao"
+          },
+          "data_emissao": {
+            "type": "string",
+            "format": "date",
+            "title": "Data Emissao"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id_certificado",
+          "id_participacao",
+          "data_emissao"
+        ],
+        "title": "CertificadoResposta"
+      },
+      "ErroResposta": {
+        "properties": {
+          "status": {
+            "type": "integer",
+            "title": "Status",
+            "examples": [
+              404
+            ]
+          },
+          "codigo": {
+            "type": "string",
+            "title": "Codigo",
+            "examples": [
+              "NAO_ENCONTRADO"
+            ]
+          },
+          "mensagem": {
+            "type": "string",
+            "title": "Mensagem",
+            "examples": [
+              "Evento não encontrado"
+            ]
+          },
+          "detalhes": {
+            "anyOf": [
+              {
+                "items": {
+                  "additionalProperties": true,
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Detalhes",
+            "description": "Presente em erros de validação (422)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status",
+          "codigo",
+          "mensagem"
+        ],
+        "title": "ErroResposta",
+        "description": "Formato único de erro de toda a API."
+      },
+      "EventoEntrada": {
+        "properties": {
+          "titulo": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Titulo",
+            "examples": [
+              "Semana de Tecnologia"
+            ]
+          },
+          "descricao": {
+            "type": "string",
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Descricao",
+            "examples": [
+              "Palestras e oficinas"
+            ]
+          },
+          "data_evento": {
+            "type": "string",
+            "format": "date",
+            "title": "Data Evento",
+            "examples": [
+              "2026-12-10"
+            ]
+          },
+          "capacidade": {
+            "type": "integer",
+            "exclusiveMinimum": 0.0,
+            "title": "Capacidade",
+            "description": "Número máximo de inscritos (> 0)",
+            "examples": [
+              50
+            ]
+          },
+          "carga_horaria": {
+            "type": "integer",
+            "exclusiveMinimum": 0.0,
+            "title": "Carga Horaria",
+            "description": "Carga horária em horas (> 0)",
+            "examples": [
+              8
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "titulo",
+          "descricao",
+          "data_evento",
+          "capacidade",
+          "carga_horaria"
+        ],
+        "title": "EventoEntrada"
+      },
+      "EventoResposta": {
+        "properties": {
+          "titulo": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Titulo",
+            "examples": [
+              "Semana de Tecnologia"
+            ]
+          },
+          "descricao": {
+            "type": "string",
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Descricao",
+            "examples": [
+              "Palestras e oficinas"
+            ]
+          },
+          "data_evento": {
+            "type": "string",
+            "format": "date",
+            "title": "Data Evento",
+            "examples": [
+              "2026-12-10"
+            ]
+          },
+          "capacidade": {
+            "type": "integer",
+            "exclusiveMinimum": 0.0,
+            "title": "Capacidade",
+            "description": "Número máximo de inscritos (> 0)",
+            "examples": [
+              50
+            ]
+          },
+          "carga_horaria": {
+            "type": "integer",
+            "exclusiveMinimum": 0.0,
+            "title": "Carga Horaria",
+            "description": "Carga horária em horas (> 0)",
+            "examples": [
+              8
+            ]
+          },
+          "id_evento": {
+            "type": "integer",
+            "title": "Id Evento"
+          }
+        },
+        "type": "object",
+        "required": [
+          "titulo",
+          "descricao",
+          "data_evento",
+          "capacidade",
+          "carga_horaria",
+          "id_evento"
+        ],
+        "title": "EventoResposta"
+      },
+      "InscricaoEntrada": {
+        "properties": {
+          "id_usuario": {
+            "type": "integer",
+            "exclusiveMinimum": 0.0,
+            "title": "Id Usuario",
+            "examples": [
+              1
+            ]
+          },
+          "id_evento": {
+            "type": "integer",
+            "exclusiveMinimum": 0.0,
+            "title": "Id Evento",
+            "examples": [
+              1
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "id_usuario",
+          "id_evento"
+        ],
+        "title": "InscricaoEntrada"
+      },
+      "InscricaoResposta": {
+        "properties": {
+          "id_inscricao": {
+            "type": "integer",
+            "title": "Id Inscricao"
+          },
+          "id_usuario": {
+            "type": "integer",
+            "title": "Id Usuario"
+          },
+          "id_evento": {
+            "type": "integer",
+            "title": "Id Evento"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id_inscricao",
+          "id_usuario",
+          "id_evento",
+          "status"
+        ],
+        "title": "InscricaoResposta"
+      },
+      "LoginEntrada": {
+        "properties": {
+          "email": {
+            "type": "string",
+            "title": "Email",
+            "examples": [
+              "maria@exemplo.com"
+            ]
+          },
+          "senha": {
+            "type": "string",
+            "title": "Senha",
+            "examples": [
+              "SenhaForte@123"
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "email",
+          "senha"
+        ],
+        "title": "LoginEntrada"
+      },
+      "MensagemResposta": {
+        "properties": {
+          "mensagem": {
+            "type": "string",
+            "title": "Mensagem"
+          }
+        },
+        "type": "object",
+        "required": [
+          "mensagem"
+        ],
+        "title": "MensagemResposta"
+      },
+      "ParticipacaoEntrada": {
+        "properties": {
+          "id_inscricao": {
+            "type": "integer",
+            "exclusiveMinimum": 0.0,
+            "title": "Id Inscricao",
+            "examples": [
+              1
+            ]
+          },
+          "presente": {
+            "type": "boolean",
+            "title": "Presente",
+            "examples": [
+              true
+            ]
+          },
+          "horas_obtidas": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Horas Obtidas",
+            "description": "Não pode exceder a carga horária do evento",
+            "examples": [
+              8
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "id_inscricao",
+          "presente",
+          "horas_obtidas"
+        ],
+        "title": "ParticipacaoEntrada"
+      },
+      "ParticipacaoResposta": {
+        "properties": {
+          "id_participacao": {
+            "type": "integer",
+            "title": "Id Participacao"
+          },
+          "id_inscricao": {
+            "type": "integer",
+            "title": "Id Inscricao"
+          },
+          "presente": {
+            "type": "boolean",
+            "title": "Presente"
+          },
+          "horas_obtidas": {
+            "type": "integer",
+            "title": "Horas Obtidas"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id_participacao",
+          "id_inscricao",
+          "presente",
+          "horas_obtidas"
+        ],
+        "title": "ParticipacaoResposta"
+      },
+      "TokenResposta": {
+        "properties": {
+          "access_token": {
+            "type": "string",
+            "title": "Access Token"
+          },
+          "token_type": {
+            "type": "string",
+            "const": "bearer",
+            "title": "Token Type",
+            "default": "bearer"
+          }
+        },
+        "type": "object",
+        "required": [
+          "access_token"
+        ],
+        "title": "TokenResposta"
+      },
+      "UsuarioAtualizar": {
+        "properties": {
+          "nome": {
+            "type": "string",
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Nome"
+          },
+          "email": {
+            "type": "string",
+            "maxLength": 254,
+            "pattern": "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$",
+            "title": "Email"
+          },
+          "senha": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 8,
+            "title": "Senha"
+          },
+          "perfil": {
+            "type": "string",
+            "enum": [
+              "participante",
+              "administrador",
+              "organizador",
+              "administrador/organizador"
+            ],
+            "title": "Perfil"
+          }
+        },
+        "type": "object",
+        "required": [
+          "nome",
+          "email",
+          "senha",
+          "perfil"
+        ],
+        "title": "UsuarioAtualizar",
+        "description": "Atualização administrativa de um usuário (permite alterar o perfil)."
+      },
+      "UsuarioCadastro": {
+        "properties": {
+          "nome": {
+            "type": "string",
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Nome",
+            "examples": [
+              "Maria Souza"
+            ]
+          },
+          "email": {
+            "type": "string",
+            "maxLength": 254,
+            "pattern": "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$",
+            "title": "Email",
+            "examples": [
+              "maria@exemplo.com"
+            ]
+          },
+          "senha": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 8,
+            "title": "Senha",
+            "examples": [
+              "SenhaForte@123"
+            ]
+          },
+          "perfil": {
+            "type": "string",
+            "title": "Perfil",
+            "default": "participante",
+            "examples": [
+              "participante"
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "nome",
+          "email",
+          "senha"
+        ],
+        "title": "UsuarioCadastro",
+        "description": "Cadastro público. Só é aceito o perfil `participante`."
+      },
+      "UsuarioResposta": {
+        "properties": {
+          "id_usuario": {
+            "type": "integer",
+            "title": "Id Usuario"
+          },
+          "nome": {
+            "type": "string",
+            "title": "Nome"
+          },
+          "email": {
+            "type": "string",
+            "title": "Email"
+          },
+          "perfil": {
+            "type": "string",
+            "title": "Perfil"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id_usuario",
+          "nome",
+          "email",
+          "perfil"
+        ],
+        "title": "UsuarioResposta"
+      }
+    },
+    "securitySchemes": {
+      "BearerAuth": {
+        "type": "http",
+        "description": "Token JWT obtido em `POST /login`. Informe apenas o token (sem o prefixo `Bearer`).",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    }
+  },
+  "tags": [
+    {
+      "name": "Autenticação",
+      "description": "Login e dados do usuário logado."
+    },
+    {
+      "name": "Usuários",
+      "description": "Cadastro e gestão de usuários."
+    },
+    {
+      "name": "Eventos",
+      "description": "Eventos acadêmicos (escrita restrita a administradores)."
+    },
+    {
+      "name": "Inscrições",
+      "description": "Inscrição de usuários em eventos, respeitando a capacidade."
+    },
+    {
+      "name": "Participações",
+      "description": "Presença e horas obtidas (administradores)."
+    },
+    {
+      "name": "Certificados",
+      "description": "Emissão de certificados (administradores)."
+    },
+    {
+      "name": "Infraestrutura",
+      "description": "Verificação de saúde do serviço."
+    }
+  ]
+}

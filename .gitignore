@@ -1,7 +1,17 @@
+# Segredos e ambiente
 .env
+.env.*
+!.env.example
 .venv/
+venv/
+
+# Python
 __pycache__/
 *.pyc
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Bancos locais
 *.db
 *.sqlite3
-.pytest_cache/
